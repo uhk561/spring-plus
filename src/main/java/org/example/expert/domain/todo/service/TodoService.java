@@ -17,6 +17,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -49,17 +51,51 @@ public class TodoService {
     }
 
     @Transactional(readOnly = true)
-    public Page<TodoResponse> getTodos(int page, int size) {
+    public Page<TodoResponse> getTodos(int page, int size, String weather, LocalDateTime start, LocalDateTime end) {
         Pageable pageable = PageRequest.of(page - 1, size);
 
-        Page<Todo> todos = todoRepository.findAllByOrderByModifiedAtDesc(pageable);
+        Page<Todo> todos;
+
+        if (weather != null && start != null && end != null) {   // 날씨 + 시작일 종료일
+            todos = todoRepository.findByWeatherAndModifiedAtBetween(
+                    weather, start, end, pageable);
+
+        } else if (weather != null && start != null) {  // 날씨 + 시작일
+            todos = todoRepository.findByWeatherAndModifiedAtAfter(
+                    weather, start, pageable);
+
+        } else if (weather != null && end != null) { // 날씨 + 종료일
+            todos = todoRepository.findByWeatherAndModifiedAtBefore(
+                    weather, end, pageable);
+
+        } else if (weather != null) {   // 날씨만
+            todos = todoRepository.findByWeather(weather, pageable);
+
+        } else if (start != null && end != null) {  // 시작일 + 종료일
+            todos = todoRepository.findByModifiedAtBetween(
+                    start, end, pageable);
+
+        } else if (start != null) { // 시작일
+            todos = todoRepository.findByModifiedAtAfter(
+                    start, pageable);
+
+        } else if (end != null) {   // 종료일
+            todos = todoRepository.findByModifiedAtBefore(
+                    end, pageable);
+
+        } else {    // 조건 없음
+            todos = todoRepository.findAllByOrderByModifiedAtDesc(pageable);
+        }
 
         return todos.map(todo -> new TodoResponse(
                 todo.getId(),
                 todo.getTitle(),
                 todo.getContents(),
                 todo.getWeather(),
-                new UserResponse(todo.getUser().getId(), todo.getUser().getEmail()),
+                new UserResponse(
+                        todo.getUser().getId(),
+                        todo.getUser().getEmail()
+                ),
                 todo.getCreatedAt(),
                 todo.getModifiedAt()
         ));
